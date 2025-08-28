@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Dot Grid</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+        }
+        canvas {
+            display: block;
+        }
+        .custom-cursor {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: rgba(0, 150, 255, 0.5);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+        .custom-cursor.still {
+            background-color: rgba(0, 200, 255, 0.8);
+            box-shadow: 0 0 20px rgba(0, 200, 255, 0.8), 0 0 30px rgba(0, 200, 255, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="dot-grid"></canvas>
+    <div class="custom-cursor"></div>
+    <script>
+        const canvas = document.getElementById('dot-grid');
+        const ctx = canvas.getContext('2d');
+
+        let dots = [];
+        const dotSpacing = 25;
+        const dotSize = 1;
+        const dotColor = '#888';
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            createDots();
+        }
+
+        class Dot {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.originalX = x;
+                this.originalY = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.size = dotSize;
+                this.color = dotColor;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                // Physics will be added here in the next step
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+
+        function createDots() {
+            dots = [];
+            for (let x = dotSpacing / 2; x < canvas.width; x += dotSpacing) {
+                for (let y = dotSpacing / 2; y < canvas.height; y += dotSpacing) {
+                    dots.push(new Dot(x, y));
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            dots.forEach(dot => {
+                dot.update();
+                dot.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Initial setup
+        resizeCanvas();
+        animate();
+    </script>
+</body>
+</html>
