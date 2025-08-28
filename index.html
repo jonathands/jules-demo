@@ -8,7 +8,8 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #111;
+            background-color: #0d0d0d;
+            cursor: none;
         }
         canvas {
             display: block;
@@ -21,11 +22,12 @@
             background-color: rgba(0, 150, 255, 0.5);
             pointer-events: none;
             transform: translate(-50%, -50%);
-            transition: background-color 0.3s, box-shadow 0.3s;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease-out;
         }
         .custom-cursor.still {
             background-color: rgba(0, 200, 255, 0.8);
             box-shadow: 0 0 20px rgba(0, 200, 255, 0.8), 0 0 30px rgba(0, 200, 255, 0.6);
+            transform: translate(-50%, -50%) scale(1.2);
         }
     </style>
 </head>
@@ -35,11 +37,61 @@
     <script>
         const canvas = document.getElementById('dot-grid');
         const ctx = canvas.getContext('2d');
+        const customCursor = document.querySelector('.custom-cursor');
 
         let dots = [];
         const dotSpacing = 25;
-        const dotSize = 1;
-        const dotColor = '#888';
+        const baseDotSize = 1;
+        const affectedDotSize = 2;
+        const baseDotColor = '#666';
+        const affectedDotColor = '#0af';
+
+        const mouse = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            // The radius of influence around the cursor
+            baseRadius: 300,
+            maxRadius: 600,
+            currentRadius: 300,
+            // Mouse movement detection
+            isStill: false,
+            stillTimer: null,
+            stillDelay: 100, // ms
+            // The strength of the pull effect
+            pullStrength: 1,
+            basePullStrength: 1,
+            maxPullStrength: 2.5,
+        };
+
+        // Linear interpolation function for smooth transitions
+        function lerp(start, end, amt) {
+            return (1 - amt) * start + amt * end;
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y;
+            customCursor.style.left = event.x + 'px';
+            customCursor.style.top = event.y + 'px';
+
+            // Reset the 'still' state on move
+            mouse.isStill = false;
+            customCursor.classList.remove('still');
+            clearTimeout(mouse.stillTimer);
+
+            // Set a timer to detect when the mouse has stopped
+            mouse.stillTimer = setTimeout(() => {
+                mouse.isStill = true;
+                customCursor.classList.add('still');
+            }, mouse.stillDelay);
+        });
+
+        // When the mouse leaves the window, move the influence point far away
+        window.addEventListener('mouseout', () => {
+            mouse.x = -1000;
+            mouse.y = -1000;
+        });
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -47,16 +99,20 @@
             createDots();
         }
 
+        // --- Dot Class ---
         class Dot {
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
                 this.originalX = x;
                 this.originalY = y;
-                this.vx = 0;
-                this.vy = 0;
-                this.size = dotSize;
-                this.color = dotColor;
+                this.vx = 0; // velocity x
+                this.vy = 0; // velocity y
+                this.size = baseDotSize;
+                this.color = baseDotColor;
+                // Physics properties
+                this.damping = 0.92; // Slows down movement (0-1)
+                this.springFactor = 0.01; // Pulls dot back to origin
             }
 
             draw() {
@@ -67,7 +123,36 @@
             }
 
             update() {
-                // Physics will be added here in the next step
+                const dx = this.x - mouse.x;
+                const dy = this.y - mouse.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                let targetSize = baseDotSize;
+                let targetColor = baseDotColor;
+
+                if (distance < mouse.currentRadius) {
+                    const angle = Math.atan2(dy, dx);
+                    const force = (mouse.currentRadius - distance) / mouse.currentRadius;
+                    this.vx -= Math.cos(angle) * force * mouse.pullStrength;
+                    this.vy -= Math.sin(angle) * force * mouse.pullStrength;
+
+                    targetSize = affectedDotSize;
+                    targetColor = affectedDotColor;
+                }
+
+                this.size = lerp(this.size, targetSize, 0.1);
+                // Color change is instant for now, could be lerped too if needed
+                this.color = targetColor;
+
+                // Spring back to original position
+                this.vx += (this.originalX - this.x) * this.springFactor;
+                this.vy += (this.originalY - this.y) * this.springFactor;
+
+                // Damping
+                this.vx *= this.damping;
+                this.vy *= this.damping;
+
+                // Update position
                 this.x += this.vx;
                 this.y += this.vy;
             }
@@ -83,7 +168,18 @@
         }
 
         function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Fading trail effect
+            ctx.fillStyle = 'rgba(13, 13, 13, 0.15)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update mouse properties
+            if (mouse.isStill) {
+                mouse.currentRadius = lerp(mouse.currentRadius, mouse.maxRadius, 0.05);
+                mouse.pullStrength = lerp(mouse.pullStrength, mouse.maxPullStrength, 0.05);
+            } else {
+                mouse.currentRadius = lerp(mouse.currentRadius, mouse.baseRadius, 0.08);
+                mouse.pullStrength = lerp(mouse.pullStrength, mouse.basePullStrength, 0.08);
+            }
 
             dots.forEach(dot => {
                 dot.update();
@@ -97,6 +193,11 @@
 
         // Initial setup
         resizeCanvas();
+        // Trigger the first mousemove to set the initial state
+        window.dispatchEvent(new MouseEvent('mousemove', {
+            clientX: window.innerWidth / 2,
+            clientY: window.innerHeight / 2
+        }));
         animate();
     </script>
 </body>
